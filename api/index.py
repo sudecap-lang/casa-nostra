@@ -4,23 +4,24 @@ import os
 import http.client
 from urllib.parse import urlparse
 
+# Pega o link do banco que aparece no seu print da Vercel
 REDIS_URL = os.environ.get('REDIS_URL')
 CHAVE_MESTRA = "1234"
 
-def redis_api(comando, path_extra=""):
+def gerenciar_redis(cmd, path_final):
     if not REDIS_URL: return None
     try:
-        # Converte a URL do Redis para HTTPS (API REST do Upstash)
+        # Converte redis:// para https:// para usar a API do Upstash
         url = urlparse(REDIS_URL.replace("redis://", "https://"))
         conn = http.client.HTTPSConnection(url.hostname, timeout=10)
         headers = {"Authorization": f"Bearer {url.password}"}
         
-        # Formato: /comando/chave/valor
-        conn.request("GET", f"/{comando}{path_extra}", headers=headers)
+        # Executa o comando (ex: /get/count ou /set/count/1)
+        conn.request("GET", f"/{cmd}{path_final}", headers=headers)
         res = conn.getresponse()
-        data = json.loads(res.read().decode())
+        corpo = json.loads(res.read().decode())
         conn.close()
-        return data.get('result')
+        return corpo.get('result')
     except:
         return None
 
@@ -34,12 +35,12 @@ class handler(BaseHTTPRequestHandler):
         query = urlparse(self.path).query
         params = dict(qc.split("=") for qc in query.split("&") if "=" in qc) if query else {}
         
-        # O site pede os dados aqui
         if params.get('key') == CHAVE_MESTRA:
-            valor = redis_api("get", "/count")
-            # Se no banco estiver "1", mandamos um item na lista para o site contar
-            resposta = [{"id": 1}] if str(valor) == "1" else []
-            self.wfile.write(json.dumps(resposta).encode())
+            # Lê o valor do banco
+            valor = gerenciar_redis("get", "/count")
+            # Se o banco tiver "1", enviamos 1 item para o site contar
+            resultado = [{"status": "on"}] if str(valor) == "1" else []
+            self.wfile.write(json.dumps(resultado).encode())
         else:
             self.wfile.write(json.dumps([]).encode())
 
@@ -47,9 +48,9 @@ class handler(BaseHTTPRequestHandler):
         try:
             tamanho = int(self.headers['Content-Length'])
             corpo = json.loads(self.rfile.read(tamanho))
-            # O Agente do PC avisa aqui que detectou algo
             if corpo.get('key') == CHAVE_MESTRA:
-                redis_api("set", "/count/1")
+                # O Agente do PC avisa que o alvo está online
+                gerenciar_redis("set", "/count/1")
                 self.send_response(200)
                 self.end_headers()
                 self.wfile.write(b"OK")

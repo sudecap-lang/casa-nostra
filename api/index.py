@@ -33,53 +33,46 @@ def redis_call(command, key, value=None):
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        # 1. Captura a chave da URL
-        params = urlparse(self.path).query
-        query_dict = dict(qc.split("=") for qc in params.split("&") if "=" in qc)
+        # Captura a chave da URL
+        query = urlparse(self.path).query
+        params = dict(qc.split("=") for qc in query.split("&") if "=" in qc)
         
-        # 2. Validação de Segurança
-        if query_dict.get('key') != CHAVE_MESTRA:
-            self.send_response(401)
-            self.send_header('Content-type', 'application/json')
-            self.send_header('Access-Control-Allow-Origin', '*')
-            self.end_headers()
-            self.wfile.write(json.dumps({"error": "Acesso negado"}).encode())
-            return
-
-        # 3. Busca os MACs no Banco de Dados
-        active_macs = redis_call("get", "active_devices")
-        if not isinstance(active_macs, list): active_macs = []
-
-        # 4. Formata a resposta para o site (Crucial para sair do ZERO)
-        data = [{"mac": m, "name": "ALVO DETECTADO"} for m in active_macs]
-
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*') # LIBERA O NAVEGADOR
+        self.send_header('Access-Control-Allow-Origin', '*') # IMPORTANTE PARA O OPERA
         self.end_headers()
+
+        if params.get('key') != CHAVE_MESTRA:
+            self.wfile.write(json.dumps({"error": "Chave incorreta"}).encode())
+            return
+
+        # Busca os MACs que seu CMD está enviando com SUCESSO
+        active_macs = redis_call("get", "active_devices")
+        
+        # Garante que seja uma lista para o site conseguir ler
+        if not isinstance(active_macs, list):
+            active_macs = [active_macs] if active_macs else []
+
+        # Formata para o site "Cosa Nostra" entender e mostrar o card
+        data = [{"mac": m, "name": "ALVO LOCALIZADO"} for m in active_macs if m]
+        
         self.wfile.write(json.dumps(data).encode())
 
     def do_POST(self):
         content_length = int(self.headers['Content-Length'])
         post_data = self.rfile.read(content_length)
+        payload = json.loads(post_data)
         
-        try:
-            payload = json.loads(post_data)
-            if payload.get('key') == CHAVE_MESTRA:
-                redis_call("set", "active_devices", payload.get('macs', []))
-                self.send_response(200)
-                self.send_header('Access-Control-Allow-Origin', '*')
-                self.end_headers()
-                self.wfile.write(json.dumps({"status": "ok"}).encode())
-            else:
-                self.send_response(403)
-                self.end_headers()
-        except:
-            self.send_response(400)
-            self.end_headers()
+        if payload.get('key') == CHAVE_MESTRA:
+            # Salva a lista de MACs no Redis
+            redis_call("set", "active_devices", payload.get('macs', []))
+            self.send_response(200)
+        else:
+            self.send_response(403)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
 
     def do_OPTIONS(self):
-        # Necessário para que o navegador aceite a conexão
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')

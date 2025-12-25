@@ -4,7 +4,7 @@ import os
 import http.client
 from urllib.parse import urlparse
 
-# CONFIGURAÇÕES DO BANCO STORAGE (REDIS)
+# CONFIGURAÇÕES DO BANCO STORAGE (REDIS-ROSE-YACHT)
 KV_URL = os.environ.get('STORAGE_REST_API_URL')
 KV_TOKEN = os.environ.get('STORAGE_REST_API_TOKEN')
 CHAVE_MESTRA = "1234"
@@ -28,32 +28,37 @@ def redis_call(command, key, value=None):
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        query = urlparse(self.path).query
-        params = dict(qc.split("=") for qc in query.split("&") if "=" in qc) if query else {}
+        # Captura parâmetros com segurança
+        try:
+            query = urlparse(self.path).query
+            params = dict(qc.split("=") for qc in query.split("&") if "=" in qc)
+        except:
+            params = {}
         
+        # Cabeçalhos obrigatórios para evitar erro no Edge/iOS/Opera
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
         self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.end_headers()
 
+        # Verifica se a chave na URL está correta
         if params.get('key') != CHAVE_MESTRA:
-            self.wfile.write(json.dumps({"error": "Chave invalida"}).encode())
+            self.wfile.write(json.dumps({"status": "bloqueado", "msg": "Use ?key=1234"}).encode())
             return
 
-        # Busca os MACs enviados pelo seu terminal
+        # Puxa os dispositivos salvos
         res = redis_call("get", "active_devices")
         
-        # Garante que o site receba uma lista [] para o contador subir
-        if isinstance(res, list):
-            lista_formatada = [{"mac": m, "name": "ALVO"} for m in res]
-        elif res:
-            lista_formatada = [{"mac": str(res), "name": "ALVO"}]
-        else:
-            lista_formatada = []
+        # Garante o formato de lista para o site contar
+        if not isinstance(res, list):
+            res = [res] if res else []
             
-        self.wfile.write(json.dumps(lista_formatada).encode())
+        final_data = [{"mac": m} for m in res if m]
+        self.wfile.write(json.dumps(final_data).encode())
 
     def do_POST(self):
+        # Recebe dados do agente local (CMD)
         try:
             content_length = int(self.headers['Content-Length'])
             post_data = self.rfile.read(content_length)
@@ -62,12 +67,14 @@ class handler(BaseHTTPRequestHandler):
             if payload.get('key') == CHAVE_MESTRA:
                 redis_call("set", "active_devices", payload.get('macs', []))
                 self.send_response(200)
-                self.send_header('Content-type', 'application/json')
-                self.end_headers()
-                self.wfile.write(json.dumps({"status": "sincronizado"}).encode())
             else:
                 self.send_response(403)
-                self.end_headers()
         except:
-            self.send_response(400)
-            self.end_headers()
+            self.send_response(500)
+        self.end_headers()
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers()

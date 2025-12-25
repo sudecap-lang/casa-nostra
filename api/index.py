@@ -24,23 +24,24 @@ def redis_call(command, key, value=None):
     return json.loads(data).get('result')
 
 class handler(BaseHTTPRequestHandler):
-    def do_GET(self):
+   def do_GET(self):
         params = urlparse(self.path).query
         query_dict = dict(qc.split("=") for qc in params.split("&") if "=" in qc)
         
         if query_dict.get('key') != CHAVE_MESTRA:
             self.send_response(401)
             self.end_headers()
-            self.wfile.write(b"ACESSO NEGADO")
             return
 
+        # Busca a lista de MACs enviada pelo seu PC
         active_macs = redis_call("get", "active_devices") or []
-        nicknames = redis_call("get", "nicknames") or {}
-        data = [{"mac": m, "name": nicknames.get(m, "ALVO DETECTADO")} for m in active_macs]
+        
+        # Garante que o formato seja uma lista de objetos que o site entenda
+        data = [{"mac": m, "name": "ALVO DETECTADO"} for m in active_macs]
 
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Origin', '*') # Libera o acesso para o site
         self.end_headers()
         self.wfile.write(json.dumps(data).encode())
 

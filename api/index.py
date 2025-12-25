@@ -4,7 +4,6 @@ import os
 import http.client
 from urllib.parse import urlparse
 
-# Credenciais do Redis (Vercel KV)
 KV_URL = os.environ.get('STORAGE_REST_API_URL')
 KV_TOKEN = os.environ.get('STORAGE_REST_API_TOKEN')
 CHAVE_MESTRA = "1234"
@@ -16,10 +15,8 @@ def redis_exec(cmd, key, val=None):
         conn = http.client.HTTPSConnection(url.hostname)
         auth = f"Bearer {KV_TOKEN}"
         path = f"/{cmd}/{key}"
-        
         metodo = "POST" if val is not None else "GET"
         corpo = json.dumps(val) if val is not None else None
-        
         conn.request(metodo, path, body=corpo, headers={"Authorization": auth, "Content-Type": "application/json"})
         res = conn.getresponse()
         data = json.loads(res.read().decode())
@@ -30,24 +27,17 @@ def redis_exec(cmd, key, val=None):
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        # Resolve o problema da tela branca enviando sempre um status 200
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
         self.send_header('Access-Control-Allow-Origin', '*')
         self.end_headers()
-
-        # Pega a chave da URL
         query = urlparse(self.path).query
         params = dict(qc.split("=") for qc in query.split("&") if "=" in qc) if query else {}
-
         if params.get('key') != CHAVE_MESTRA:
-            self.wfile.write(json.dumps({"msg": "Chave incorreta"}).encode())
+            self.wfile.write(json.dumps([]).encode())
             return
-
-        # Busca dados e garante que o site receba uma lista []
         dados_brutos = redis_exec("get", "active_devices")
         lista = [{"mac": m} for m in dados_brutos] if isinstance(dados_brutos, list) else []
-        
         self.wfile.write(json.dumps(lista).encode())
 
     def do_POST(self):

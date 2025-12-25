@@ -1,27 +1,37 @@
-<script>
-    const params = new URLSearchParams(window.location.search);
-    const chave = params.get('key');
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>COSA NOSTRA - MONITOR</title>
+    <style>
+        body { background: #000; color: #0f0; font-family: monospace; text-align: center; padding-top: 50px; }
+        .monitor { border: 2px solid #0f0; display: inline-block; padding: 20px; border-radius: 10px; box-shadow: 0 0 15px #0f0; }
+        #contador { font-size: 80px; font-weight: bold; display: block; }
+    </style>
+</head>
+<body>
+    <div class="monitor">
+        <h2>SISTEMA DE INTELIGÊNCIA</h2>
+        <span id="contador">0</span>
+        <p>DISPOSITIVOS EM ALVO</p>
+        <div id="lista"></div>
+    </div>
 
-    async function monitorar() {
-        if (!chave) return;
-        try {
-            // O t=Date.now() obriga o navegador a buscar o dado real no banco
-            const r = await fetch(`/api?key=${chave}&t=${Date.now()}`);
-            const d = await r.json();
-            
-            // Se d for uma lista, d.length será 1 (conforme seu terminal mostra)
-            const total = Array.isArray(d) ? d.length : 0;
-            
-            const el = document.getElementById('contador');
-            el.innerText = total;
-            
-            // Muda a cor se detectar algo
-            el.style.color = total > 0 ? "#ff0000" : "#00ff00";
-        } catch (e) {
-            console.error("Erro de conexão");
+    <script>
+        const key = new URLSearchParams(window.location.search).get('key');
+        async function atualizar() {
+            if (!key) { document.body.innerHTML = "<h1>ERRO: CHAVE AUSENTE</h1>"; return; }
+            try {
+                const res = await fetch(`/api?key=${key}&t=${Date.now()}`);
+                const dados = await res.json();
+                document.getElementById('contador').innerText = dados.length || 0;
+                let html = "";
+                dados.forEach(d => html += `<div>DETECTADO: ${d.mac}</div>`);
+                document.getElementById('lista').innerHTML = html;
+            } catch (e) { console.log("Erro ao conectar"); }
         }
-    }
-
-    setInterval(monitorar, 3000);
-    monitorar();
-</script>
+        setInterval(atualizar, 5000);
+        atualizar();
+    </script>
+</body>
+</html>

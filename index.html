@@ -2,80 +2,64 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>COSA NOSTRA - CONSOLE</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>COSA NOSTRA - NETWORK INTELLIGENCE</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
-        body { font-family: 'JetBrains Mono', monospace; background-color: #000; }
-        .glitch-text { text-shadow: 0 0 10px #00ff00; }
+        body { background: #000; color: #0f0; font-family: monospace; text-align: center; padding-top: 50px; }
+        .monitor { border: 2px solid #0f0; display: inline-block; padding: 20px; border-radius: 10px; box-shadow: 0 0 15px #0f0; }
+        #contador { font-size: 80px; font-weight: bold; display: block; }
+        .status { color: #0a0; margin-top: 10px; font-size: 12px; }
+        #lista { margin-top: 20px; text-align: left; display: inline-block; }
     </style>
 </head>
-<body class="text-green-500 p-5">
-    <div class="max-w-md mx-auto">
-        <header class="flex justify-between items-center border-b border-zinc-800 pb-4 mb-6">
-            <div>
-                <h1 class="text-2xl font-bold glitch-text">COSA NOSTRA</h1>
-                <p class="text-[10px] text-zinc-500 tracking-widest uppercase">Network Intelligence v7.0</p>
-            </div>
-            <div id="count" class="text-4xl font-bold bg-zinc-900 px-4 py-2 rounded border border-green-900 shadow-[0_0_15px_rgba(0,255,0,0.1)]">
-                0
-            </div>
-        </header>
+<body>
 
-        <div id="status" class="text-center text-[10px] mb-4 text-zinc-600 uppercase tracking-tighter">
-            Aguardando autorização da chave...
-        </div>
-
-        <div id="display" class="space-y-3">
-            </div>
+    <div class="monitor">
+        <h2 style="margin: 0;">COSA NOSTRA</h2>
+        <small>NETWORK INTELLIGENCE V7.0</small>
+        <hr style="border: 0.5px solid #0f0; margin: 20px 0;">
+        
+        <span id="contador">0</span>
+        <div class="status">SINCRO-ESTÁVEL // LINK CRIPTOGRAFADO</div>
+        
+        <div id="lista"></div>
     </div>
 
     <script>
-        async function loadData() {
-            // Pega a chave do link: ?key=1234
-            const params = new URLSearchParams(window.location.search);
-            const key = params.get('key');
+        const urlParams = new URLSearchParams(window.location.search);
+        const key = urlParams.get('key');
 
+        async function atualizarDados() {
             if (!key) {
-                document.getElementById('status').innerText = "ERRO: ACESSO NEGADO. INSIRA A CHAVE NO URL.";
-                document.getElementById('status').classList.add('text-red-500');
+                document.body.innerHTML = "<h1>ACESSO NEGADO: CHAVE AUSENTE</h1>";
                 return;
             }
 
             try {
-                const r = await fetch(`/api?key=${key}`);
-                if (!r.ok) throw new Error();
-                
-                const data = await r.json();
-                document.getElementById('count').innerText = data.length;
-                document.getElementById('status').innerText = "SINCRO-ESTÁVEL // LINK CRIPTOGRAFADO";
-                document.getElementById('status').classList.replace('text-zinc-600', 'text-green-800');
+                // Adicionamos um timestamp (t=...) para forçar o navegador a não usar cache
+                const response = await fetch(`/api?key=${key}&t=${Date.now()}`);
+                const dados = await response.json();
 
-                const container = document.getElementById('display');
-                if (data.length === 0) {
-                    container.innerHTML = '<div class="text-center text-zinc-700 py-10 italic">Nenhum sinal detectado...</div>';
-                    return;
+                if (Array.isArray(dados)) {
+                    const total = dados.length;
+                    document.getElementById('contador').innerText = total;
+                    
+                    let htmlLista = "";
+                    dados.forEach(item => {
+                        htmlLista += `<div>[+] ALVO DETECTADO: ${item.mac}</div>`;
+                    });
+                    document.getElementById('lista').innerHTML = htmlLista;
+                    
+                    // Se houver 1 ou mais, muda a cor para alerta
+                    document.getElementById('contador').style.color = total > 0 ? "#f00" : "#0f0";
                 }
-
-                container.innerHTML = data.map(dev => `
-                    <div class="bg-zinc-900/50 border border-zinc-800 p-4 rounded-lg flex justify-between items-center">
-                        <div>
-                            <div class="text-white text-xs font-bold uppercase">${dev.name}</div>
-                            <div class="text-[10px] text-zinc-500 mt-1">${dev.mac}</div>
-                        </div>
-                        <div class="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
-                    </div>
-                `).join('');
-
-            } catch (e) {
-                document.getElementById('status').innerText = "CHAVE INVÁLIDA OU ERRO DE SERVIDOR";
-                document.getElementById('status').classList.add('text-red-500');
+            } catch (err) {
+                console.error("Erro ao buscar dados:", err);
             }
         }
 
-        setInterval(loadData, 5000);
-        loadData();
+        // Atualiza a cada 5 segundos
+        setInterval(atualizarDados, 5000);
+        atualizarDados();
     </script>
 </body>
 </html>

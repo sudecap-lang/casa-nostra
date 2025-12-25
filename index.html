@@ -4,17 +4,20 @@
     <meta charset="UTF-8">
     <title>COSA NOSTRA - MONITOR</title>
     <style>
-        body { background: #000; color: #0f0; font-family: monospace; text-align: center; padding-top: 50px; }
-        .monitor { border: 2px solid #0f0; display: inline-block; padding: 20px; border-radius: 10px; box-shadow: 0 0 15px #0f0; }
-        #contador { font-size: 80px; font-weight: bold; display: block; }
+        body { background: #000; color: #0f0; font-family: 'Courier New', monospace; text-align: center; padding-top: 50px; }
+        .monitor { border: 2px solid #0f0; display: inline-block; padding: 30px; border-radius: 15px; box-shadow: 0 0 20px #0f0; background: #050505; }
+        #contador { font-size: 100px; font-weight: bold; display: block; color: #f00; text-shadow: 0 0 10px #f00; }
+        .status { color: #0a0; font-size: 12px; margin-top: 10px; border-top: 1px solid #0f0; padding-top: 10px; }
+        #lista { margin-top: 20px; font-size: 14px; color: #fff; }
     </style>
 </head>
 <body>
     <div class="monitor">
-        <h2>SISTEMA DE INTELIGÊNCIA</h2>
+        <h2 style="margin:0">COSA NOSTRA INTELLIGENCE</h2>
+        <small>v7.0 Stable Release</small>
         <span id="contador">0</span>
-        <p>DISPOSITIVOS EM ALVO</p>
-        <div id="lista"></div>
+        <div id="lista">AGUARDANDO SINAL...</div>
+        <div class="status">SISTEMA ATIVO // LINK CRIPTOGRAFADO</div>
     </div>
 
     <script>
@@ -26,11 +29,15 @@
                 const dados = await res.json();
                 document.getElementById('contador').innerText = dados.length || 0;
                 let html = "";
-                dados.forEach(d => html += `<div>DETECTADO: ${d.mac}</div>`);
+                if (Array.isArray(dados) && dados.length > 0) {
+                    dados.forEach(d => html += `<div>[+] DISPOSITIVO: ${d.mac}</div>`);
+                } else {
+                    html = "NENHUM ALVO NA REDE";
+                }
                 document.getElementById('lista').innerHTML = html;
-            } catch (e) { console.log("Erro ao conectar"); }
+            } catch (e) { console.log("Erro de conexão"); }
         }
-        setInterval(atualizar, 5000);
+        setInterval(atualizar, 3000);
         atualizar();
     </script>
 </body>

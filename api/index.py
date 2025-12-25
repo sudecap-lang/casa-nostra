@@ -4,7 +4,7 @@ import os
 import http.client
 from urllib.parse import urlparse
 
-# Configurações do Redis (Vercel KV)
+# Puxa as chaves do seu banco redis-rose-yacht
 KV_URL = os.environ.get('STORAGE_REST_API_URL')
 KV_TOKEN = os.environ.get('STORAGE_REST_API_TOKEN')
 CHAVE_MESTRA = "1234"
@@ -33,36 +33,34 @@ class handler(BaseHTTPRequestHandler):
         
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*') # Libera o Opera
-        self.send_header('Cache-Control', 'no-store') # Força dado novo
+        self.send_header('Access-Control-Allow-Origin', '*') # LIBERA PARA O OPERA
         self.end_headers()
 
         if params.get('key') != CHAVE_MESTRA:
             self.wfile.write(json.dumps([]).encode())
             return
 
-        # Puxa o dado do Redis
-        raw_res = redis_call("get", "active_devices")
+        # Busca os dados que seu terminal enviou
+        res = redis_call("get", "active_devices")
         
-        # TRANSFORMAÇÃO CRÍTICA: Garante que o site receba uma lista []
-        if isinstance(raw_res, list):
-            data = raw_res
-        elif raw_res:
-            data = [raw_res] # Se for um texto único, vira lista
+        # Garante o formato de LISTA que o site index.html exige
+        if isinstance(res, list):
+            data = [{"mac": m} for m in res if m]
+        elif res:
+            data = [{"mac": res}]
         else:
             data = []
-
+            
         self.wfile.write(json.dumps(data).encode())
 
     def do_POST(self):
+        # Este método recebe os dados do seu terminal
         content_length = int(self.headers['Content-Length'])
         post_data = self.rfile.read(content_length)
         payload = json.loads(post_data)
         
         if payload.get('key') == CHAVE_MESTRA:
-            # Salva o que vem do seu terminal
-            macs = payload.get('macs', [])
-            redis_call("set", "active_devices", macs)
+            redis_call("set", "active_devices", payload.get('macs', []))
             self.send_response(200)
         else:
             self.send_response(403)

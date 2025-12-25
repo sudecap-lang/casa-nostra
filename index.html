@@ -4,44 +4,33 @@
     <meta charset="UTF-8">
     <title>COSA NOSTRA MONITOR</title>
     <style>
-        body { background: #000; color: #0f0; font-family: 'Courier New', monospace; text-align: center; padding-top: 50px; }
-        .monitor { border: 2px solid #0f0; display: inline-block; padding: 40px; border-radius: 20px; box-shadow: 0 0 30px #0f0; background: #050505; min-width: 400px; }
-        #contador { font-size: 150px; font-weight: bold; display: block; color: #f00; text-shadow: 0 0 20px #f00; margin: 20px 0; }
-        .status-footer { border-top: 1px solid #0f0; padding-top: 10px; font-size: 12px; color: #0f0; opacity: 0.7; }
+        body { background: #000; color: #0f0; font-family: monospace; text-align: center; padding-top: 50px; }
+        .monitor { border: 2px solid #0f0; display: inline-block; padding: 40px; border-radius: 15px; background: #050505; }
+        #contador { font-size: 150px; color: #f00; font-weight: bold; margin: 20px 0; }
     </style>
 </head>
 <body>
     <div class="monitor">
         <h2>COSA NOSTRA INTELLIGENCE</h2>
-        <small>v7.0 Stable Release</small>
-        <span id="contador">0</span>
-        <p id="msg">SINCRONIZANDO...</p>
-        <div class="status-footer">SISTEMA ATIVO // LINK CRIPTOGRAFADO</div>
+        <div id="contador">0</div>
+        <p id="msg">AGUARDANDO SINAL...</p>
     </div>
 
     <script>
         async function atualizar() {
-            const params = new URLSearchParams(window.location.search);
-            const chave = params.get('key') || "1234";
+            const urlParams = new URLSearchParams(window.location.search);
+            const minhaChave = urlParams.get('key') || "1234";
 
             try {
-                // O 't=' força a Vercel a buscar o dado real no banco agora
-                const res = await fetch(`/api?key=${chave}&t=${Date.now()}`);
+                // 't=' impede que o navegador mostre o resultado antigo
+                const res = await fetch(`/api?key=${minhaChave}&t=${Date.now()}`);
                 const dados = await res.json();
                 
-                // Se o servidor retornar uma lista com conteúdo, mostramos 1
-                const total = Array.isArray(dados) ? dados.length : 0;
+                const total = dados.length;
                 document.getElementById('contador').innerText = total;
-                
-                if (total > 0) {
-                    document.getElementById('msg').innerText = "ALVO DETECTADO NA REDE";
-                    document.getElementById('contador').style.color = "#f00";
-                } else {
-                    document.getElementById('msg').innerText = "NENHUM ALVO NA REDE";
-                    document.getElementById('contador').style.color = "#333";
-                }
+                document.getElementById('msg').innerText = total > 0 ? "ALVO DETECTADO" : "NENHUM ALVO";
             } catch (e) {
-                document.getElementById('msg').innerText = "ERRO DE CONEXÃO";
+                console.log("Erro de conexão");
             }
         }
         setInterval(atualizar, 3000);

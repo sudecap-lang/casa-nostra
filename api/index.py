@@ -1,60 +1,63 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <title>COSA NOSTRA - PRIVADO</title>
-    <style>
-        body { background: #000; color: #0f0; font-family: monospace; padding: 20px; }
-        .header { border-bottom: 1px solid #333; padding-bottom: 10px; display: flex; justify-content: space-between; }
-        .device-card { border: 1px solid #111; padding: 15px; margin: 10px 0; background: #050505; }
-        .status-pulse { color: #0f0; font-size: 24px; }
-        .error { color: #f00; }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <div>
-            <h1>COSA NOSTRA</h1>
-            <p>NETWORK INTELLIGENCE</p>
-        </div>
-        <div id="counter" class="status-pulse">0</div>
-    </div>
+from http.server import BaseHTTPRequestHandler
+import json
+import os
+import http.client
+from urllib.parse import urlparse
 
-    <div id="content">Aguardando autorização...</div>
+# Puxa as chaves do banco redis-rose-yacht (Configurado nas suas fotos)
+KV_URL = os.environ.get('STORAGE_REST_API_URL')
+KV_TOKEN = os.environ.get('STORAGE_REST_API_TOKEN')
+CHAVE_MESTRA = "1234"
 
-    <script>
-        async function updateDashboard() {
-            // Pega a chave direto do link (ex: ?key=1234)
-            const urlParams = new URLSearchParams(window.location.search);
-            const key = urlParams.get('key');
+def redis_call(command, key, value=None):
+    if not KV_URL: return None
+    parsed = urlparse(KV_URL)
+    conn = http.client.HTTPSConnection(parsed.hostname)
+    headers = {"Authorization": f"Bearer {KV_TOKEN}"}
+    path = f"/{command}/{key}"
+    body = json.dumps(value) if value is not None else None
+    method = "POST" if value is not None else "GET"
+    conn.request(method, path, body=body, headers=headers)
+    res = conn.getresponse()
+    data = res.read()
+    conn.close()
+    return json.loads(data).get('result')
 
-            if (!key) {
-                document.getElementById('content').innerHTML = "<h2 class='error'>ERRO: ACESSO NEGADO. USE O LINK COM A CHAVE.</h2>";
-                return;
-            }
+class handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        params = urlparse(self.path).query
+        query_dict = dict(qc.split("=") for qc in params.split("&") if "=" in qc)
+        
+        if query_dict.get('key') != CHAVE_MESTRA:
+            self.send_response(401)
+            self.end_headers()
+            self.wfile.write(b"ACESSO NEGADO")
+            return
 
-            try {
-                const response = await fetch(`/api?key=${key}`);
-                if (!response.ok) throw new Error("Chave incorreta");
-                
-                const data = await response.json();
-                document.getElementById('counter').innerText = data.length;
-                
-                let html = "";
-                data.forEach(dev => {
-                    html += `<div class="device-card">
-                                <strong>ALVO DETECTADO:</strong> ${dev.name}<br>
-                                <small>MAC: ${dev.mac}</small>
-                             </div>`;
-                });
-                document.getElementById('content').innerHTML = html || "Monitorando rede... Nenhum dispositivo ativo no momento.";
-            } catch (err) {
-                document.getElementById('content').innerHTML = "<h2 class='error'>ERRO DE CONEXÃO OU CHAVE INVÁLIDA</h2>";
-            }
-        }
+        active_macs = redis_call("get", "active_devices") or []
+        nicknames = redis_call("get", "nicknames") or {}
+        data = [{"mac": m, "name": nicknames.get(m, "ALVO DETECTADO")} for m in active_macs]
 
-        setInterval(updateDashboard, 5000); // Atualiza a cada 5 segundos
-        updateDashboard();
-    </script>
-</body>
-</html>
+        self.send_response(200)
+        self.send_header('Content-type', 'application/json')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.end_headers()
+        self.wfile.write(json.dumps(data).encode())
+
+    def do_POST(self):
+        content_length = int(self.headers['Content-Length'])
+        post_data = self.rfile.read(content_length)
+        payload = json.loads(post_data)
+        
+        if payload.get('key') != CHAVE_MESTRA:
+            self.send_response(403)
+            self.end_headers()
+            return
+
+        if 'macs' in payload:
+            redis_call("set", "active_devices", payload['macs'])
+        
+        self.send_response(200)
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps({"status": "ok"}).encode())

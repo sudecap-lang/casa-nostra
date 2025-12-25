@@ -1,55 +1,33 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <title>COSA NOSTRA INTELLIGENCE</title>
-    <style>
-        body { background: #000; color: #0f0; font-family: 'Courier New', monospace; text-align: center; padding-top: 50px; }
-        .monitor { border: 2px solid #0f0; display: inline-block; padding: 40px; border-radius: 20px; box-shadow: 0 0 30px #0f0; background: #050505; min-width: 400px; }
-        #contador { font-size: 150px; font-weight: bold; display: block; color: #f00; text-shadow: 0 0 20px #f00; margin: 20px 0; }
-        .status { border-top: 1px solid #0f0; padding-top: 10px; font-size: 12px; color: #0f0; opacity: 0.7; }
-    </style>
-</head>
-<body>
-    <div class="monitor">
-        <h2>COSA NOSTRA INTELLIGENCE</h2>
-        <small>v7.0 Stable Release</small>
-        
-        <span id="contador">0</span>
-        
-        <p id="msg">NENHUM ALVO NA REDE</p>
-        
-        <div class="status">SISTEMA ATIVO // LINK CRIPTOGRAFADO</div>
-    </div>
+<script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const chaveAcesso = urlParams.get('key'); // Pega o 1234 da URL
 
-    <script>
-        const key = new URLSearchParams(window.location.search).get('key');
-        
-        async function atualizar() {
-            if (!key) return;
-            try {
-                // Adicionamos o 't' para evitar que o navegador use o cache antigo
-                const res = await fetch(`/api?key=${key}&t=${Date.now()}`);
-                const dados = await res.json();
-                
-                const total = Array.isArray(dados) ? dados.length : 0;
-                document.getElementById('contador').innerText = total;
-                
-                if (total > 0) {
-                    document.getElementById('msg').innerText = "DISPOSITIVO DETECTADO";
-                    document.getElementById('contador').style.color = "#f00";
-                } else {
-                    document.getElementById('msg').innerText = "NENHUM ALVO NA REDE";
-                    document.getElementById('contador').style.color = "#333";
-                }
-            } catch (e) {
-                console.log("Erro de sincronização...");
-            }
+    async function atualizar() {
+        if (!chaveAcesso) {
+            document.getElementById('msg').innerText = "ERRO: CHAVE AUSENTE";
+            return;
         }
 
-        // Atualiza a cada 3 segundos
-        setInterval(atualizar, 3000);
-        atualizar();
-    </script>
-</body>
-</html>
+        try {
+            // O t=Date.now garante que o navegador não use dados velhos do cache
+            const res = await fetch(`/api?key=${chaveAcesso}&t=${Date.now()}`);
+            const dados = await res.json();
+            
+            const total = Array.isArray(dados) ? dados.length : 0;
+            document.getElementById('contador').innerText = total;
+            
+            if (total > 0) {
+                document.getElementById('msg').innerText = "ALVO DETECTADO NA REDE";
+                document.getElementById('contador').style.color = "#f00";
+            } else {
+                document.getElementById('msg').innerText = "NENHUM ALVO NA REDE";
+                document.getElementById('contador').style.color = "#0f0";
+            }
+        } catch (e) {
+            console.error("Falha na sincronização");
+        }
+    }
+
+    setInterval(atualizar, 3000);
+    atualizar();
+</script>

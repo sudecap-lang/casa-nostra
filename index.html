@@ -2,64 +2,63 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>COSA NOSTRA - NETWORK INTELLIGENCE</title>
+    <title>COSA NOSTRA - MONITOR</title>
     <style>
-        body { background: #000; color: #0f0; font-family: monospace; text-align: center; padding-top: 50px; }
-        .monitor { border: 2px solid #0f0; display: inline-block; padding: 20px; border-radius: 10px; box-shadow: 0 0 15px #0f0; }
-        #contador { font-size: 80px; font-weight: bold; display: block; }
-        .status { color: #0a0; margin-top: 10px; font-size: 12px; }
-        #lista { margin-top: 20px; text-align: left; display: inline-block; }
+        body { background: #000; color: #0f0; font-family: monospace; text-align: center; padding: 50px; }
+        .monitor { border: 2px solid #0f0; display: inline-block; padding: 30px; border-radius: 15px; box-shadow: 0 0 20px #0f0; }
+        #contador { font-size: 100px; display: block; margin: 10px 0; }
+        .info { font-size: 12px; color: #0a0; text-transform: uppercase; letter-spacing: 2px; }
+        #detalhes { margin-top: 15px; font-size: 14px; color: #fff; }
     </style>
 </head>
 <body>
 
     <div class="monitor">
-        <h2 style="margin: 0;">COSA NOSTRA</h2>
-        <small>NETWORK INTELLIGENCE V7.0</small>
-        <hr style="border: 0.5px solid #0f0; margin: 20px 0;">
-        
+        <div class="info">Cosa Nostra Intelligence</div>
         <span id="contador">0</span>
-        <div class="status">SINCRO-ESTÁVEL // LINK CRIPTOGRAFADO</div>
-        
-        <div id="lista"></div>
+        <div class="info">Dispositivos Ativos</div>
+        <div id="detalhes">Aguardando sinal...</div>
     </div>
 
     <script>
-        const urlParams = new URLSearchParams(window.location.search);
-        const key = urlParams.get('key');
+        const params = new URLSearchParams(window.location.search);
+        const chave = params.get('key');
 
-        async function atualizarDados() {
-            if (!key) {
-                document.body.innerHTML = "<h1>ACESSO NEGADO: CHAVE AUSENTE</h1>";
+        async function buscarDados() {
+            if (!chave) {
+                document.body.innerHTML = "<h1>ERRO: CHAVE AUSENTE NA URL</h1>";
                 return;
             }
 
             try {
-                // Adicionamos um timestamp (t=...) para forçar o navegador a não usar cache
-                const response = await fetch(`/api?key=${key}&t=${Date.now()}`);
-                const dados = await response.json();
+                // O t=Date.now() serve para o navegador não usar o "zero" que está na memória
+                const resp = await fetch(`/api?key=${chave}&t=${Date.now()}`, {
+                    method: 'GET',
+                    mode: 'cors'
+                });
+                
+                const dados = await resp.json();
 
                 if (Array.isArray(dados)) {
                     const total = dados.length;
                     document.getElementById('contador').innerText = total;
                     
-                    let htmlLista = "";
-                    dados.forEach(item => {
-                        htmlLista += `<div>[+] ALVO DETECTADO: ${item.mac}</div>`;
-                    });
-                    document.getElementById('lista').innerHTML = htmlLista;
-                    
-                    // Se houver 1 ou mais, muda a cor para alerta
-                    document.getElementById('contador').style.color = total > 0 ? "#f00" : "#0f0";
+                    if (total > 0) {
+                        document.getElementById('contador').style.color = "#f00"; // Fica vermelho se detectar
+                        document.getElementById('detalhes').innerText = "ALVO LOCALIZADO NA REDE";
+                    } else {
+                        document.getElementById('contador').style.color = "#0f0";
+                        document.getElementById('detalhes').innerText = "Nenhum sinal detectado...";
+                    }
                 }
-            } catch (err) {
-                console.error("Erro ao buscar dados:", err);
+            } catch (e) {
+                console.error("Falha na sincronização");
             }
         }
 
-        // Atualiza a cada 5 segundos
-        setInterval(atualizarDados, 5000);
-        atualizarDados();
+        // Atualiza a cada 3 segundos
+        setInterval(buscarDados, 3000);
+        buscarDados();
     </script>
 </body>
 </html>

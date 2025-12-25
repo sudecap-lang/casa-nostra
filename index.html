@@ -1,64 +1,40 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html>
 <head>
     <meta charset="UTF-8">
-    <title>COSA NOSTRA - MONITOR</title>
+    <title>COSA NOSTRA</title>
     <style>
         body { background: #000; color: #0f0; font-family: monospace; text-align: center; padding: 50px; }
-        .monitor { border: 2px solid #0f0; display: inline-block; padding: 30px; border-radius: 15px; box-shadow: 0 0 20px #0f0; }
-        #contador { font-size: 100px; display: block; margin: 10px 0; }
-        .info { font-size: 12px; color: #0a0; text-transform: uppercase; letter-spacing: 2px; }
-        #detalhes { margin-top: 15px; font-size: 14px; color: #fff; }
+        #contador { font-size: 100px; display: block; color: #f00; }
+        .box { border: 2px solid #0f0; display: inline-block; padding: 20px; box-shadow: 0 0 15px #0f0; }
     </style>
 </head>
 <body>
-
-    <div class="monitor">
-        <div class="info">Cosa Nostra Intelligence</div>
+    <div class="box">
+        <h2>SISTEMA ATIVO</h2>
         <span id="contador">0</span>
-        <div class="info">Dispositivos Ativos</div>
-        <div id="detalhes">Aguardando sinal...</div>
+        <p>DISPOSITIVOS DETECTADOS</p>
+        <div id="lista"></div>
     </div>
 
     <script>
-        const params = new URLSearchParams(window.location.search);
-        const chave = params.get('key');
+        const chave = new URLSearchParams(window.location.search).get('key');
 
-        async function buscarDados() {
-            if (!chave) {
-                document.body.innerHTML = "<h1>ERRO: CHAVE AUSENTE NA URL</h1>";
-                return;
-            }
-
+        async function atualizar() {
+            if(!chave) return;
             try {
-                // O t=Date.now() serve para o navegador não usar o "zero" que está na memória
-                const resp = await fetch(`/api?key=${chave}&t=${Date.now()}`, {
-                    method: 'GET',
-                    mode: 'cors'
-                });
+                // O t=Date.now() evita que o navegador mostre o resultado antigo (0)
+                const r = await fetch(`/api?key=${chave}&t=${Date.now()}`);
+                const d = await r.json();
+                document.getElementById('contador').innerText = d.length;
                 
-                const dados = await resp.json();
-
-                if (Array.isArray(dados)) {
-                    const total = dados.length;
-                    document.getElementById('contador').innerText = total;
-                    
-                    if (total > 0) {
-                        document.getElementById('contador').style.color = "#f00"; // Fica vermelho se detectar
-                        document.getElementById('detalhes').innerText = "ALVO LOCALIZADO NA REDE";
-                    } else {
-                        document.getElementById('contador').style.color = "#0f0";
-                        document.getElementById('detalhes').innerText = "Nenhum sinal detectado...";
-                    }
-                }
-            } catch (e) {
-                console.error("Falha na sincronização");
-            }
+                let txt = "";
+                d.forEach(i => txt += "ALVO: " + (i.mac || "DESCONHECIDO") + "<br>");
+                document.getElementById('lista').innerHTML = txt;
+            } catch(e) { console.log("Erro na rede"); }
         }
-
-        // Atualiza a cada 3 segundos
-        setInterval(buscarDados, 3000);
-        buscarDados();
+        setInterval(atualizar, 3000);
+        atualizar();
     </script>
 </body>
 </html>

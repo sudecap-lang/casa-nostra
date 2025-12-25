@@ -4,7 +4,7 @@ import os
 import http.client
 from urllib.parse import urlparse
 
-# Puxa as chaves do banco redis-rose-yacht
+# Puxa as chaves do seu banco redis-rose-yacht
 KV_URL = os.environ.get('STORAGE_REST_API_URL')
 KV_TOKEN = os.environ.get('STORAGE_REST_API_TOKEN')
 CHAVE_MESTRA = "1234"
@@ -17,13 +17,12 @@ def redis_call(command, key, value=None):
     path = f"/{command}/{key}"
     method = "POST" if value is not None else "GET"
     body = json.dumps(value) if value is not None else None
-    
     try:
         conn.request(method, path, body=body, headers=headers)
         res = conn.getresponse()
-        raw_data = res.read().decode()
+        raw = res.read().decode()
         conn.close()
-        return json.loads(raw_data).get('result')
+        return json.loads(raw).get('result')
     except:
         return None
 
@@ -32,31 +31,30 @@ class handler(BaseHTTPRequestHandler):
         query = urlparse(self.path).query
         params = dict(qc.split("=") for qc in query.split("&") if "=" in qc)
         
-        # RESPOSTA DE CABEÇALHO (CORS)
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate')
+        self.send_header('Access-Control-Allow-Origin', '*') # LIBERA PARA O OPERA
         self.end_headers()
 
         if params.get('key') != CHAVE_MESTRA:
-            self.wfile.write(json.dumps({"error": "Chave incorreta"}).encode())
+            self.wfile.write(json.dumps([]).encode())
             return
 
-        # Busca os dados enviados pelo seu terminal
-        active_macs = redis_call("get", "active_devices")
+        # Busca os dados que seu terminal enviou
+        res = redis_call("get", "active_devices")
         
-        # Converte para o formato que o seu site Cosa Nostra espera
-        if isinstance(active_macs, list):
-            lista_final = [{"mac": m, "name": "ALVO DETECTADO"} for m in active_macs if m]
-        elif active_macs:
-            lista_final = [{"mac": active_macs, "name": "ALVO DETECTADO"}]
+        # Garante o formato de LISTA que o site index.html exige
+        if isinstance(res, list):
+            data = [{"mac": m} for m in res if m]
+        elif res:
+            data = [{"mac": res}]
         else:
-            lista_final = []
-
-        self.wfile.write(json.dumps(lista_final).encode())
+            data = []
+            
+        self.wfile.write(json.dumps(data).encode())
 
     def do_POST(self):
+        # Este método recebe os dados do seu terminal
         content_length = int(self.headers['Content-Length'])
         post_data = self.rfile.read(content_length)
         payload = json.loads(post_data)
@@ -67,11 +65,4 @@ class handler(BaseHTTPRequestHandler):
         else:
             self.send_response(403)
         self.send_header('Access-Control-Allow-Origin', '*')
-        self.end_headers()
-
-    def do_OPTIONS(self):
-        self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         self.end_headers()

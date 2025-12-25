@@ -7,33 +7,29 @@
         body { background: #000; color: #0f0; font-family: 'Courier New', monospace; text-align: center; padding-top: 50px; }
         .monitor { border: 2px solid #0f0; display: inline-block; padding: 40px; border-radius: 20px; box-shadow: 0 0 30px #0f0; background: #050505; min-width: 400px; }
         #contador { font-size: 150px; font-weight: bold; display: block; color: #f00; text-shadow: 0 0 20px #f00; margin: 20px 0; }
-        .status-rodape { border-top: 1px solid #0f0; padding-top: 10px; font-size: 12px; color: #0f0; opacity: 0.7; }
+        .status-footer { border-top: 1px solid #0f0; padding-top: 10px; font-size: 12px; color: #0f0; opacity: 0.7; }
     </style>
 </head>
 <body>
     <div class="monitor">
         <h2>COSA NOSTRA INTELLIGENCE</h2>
         <small>v7.0 Stable Release</small>
-        
         <span id="contador">0</span>
-        
-        <p id="msg">SISTEMA INICIANDO...</p>
-        
-        <div class="status-rodape">SISTEMA ATIVO // LINK CRIPTOGRAFADO</div>
+        <p id="msg">SINCRONIZANDO...</p>
+        <div class="status-footer">SISTEMA ATIVO // LINK CRIPTOGRAFADO</div>
     </div>
 
     <script>
         async function atualizar() {
-            // Pega a chave 1234 da URL do site
-            const urlParams = new URLSearchParams(window.location.search);
-            const chaveAcesso = urlParams.get('key') || "1234";
+            const params = new URLSearchParams(window.location.search);
+            const chave = params.get('key') || "1234";
 
             try {
-                // O parâmetro 't' evita que o navegador use dados antigos (cache)
-                const res = await fetch(`/api?key=${chaveAcesso}&t=${Date.now()}`);
+                // O 't=' força a Vercel a buscar o dado real no banco agora
+                const res = await fetch(`/api?key=${chave}&t=${Date.now()}`);
                 const dados = await res.json();
                 
-                // Conta quantos itens vieram na lista
+                // Se o servidor retornar uma lista com conteúdo, mostramos 1
                 const total = Array.isArray(dados) ? dados.length : 0;
                 document.getElementById('contador').innerText = total;
                 
@@ -45,12 +41,9 @@
                     document.getElementById('contador').style.color = "#333";
                 }
             } catch (e) {
-                document.getElementById('msg').innerText = "FALHA DE SINCRONIZAÇÃO";
-                console.error("Erro na API:", e);
+                document.getElementById('msg').innerText = "ERRO DE CONEXÃO";
             }
         }
-
-        // Tenta atualizar o número a cada 3 segundos
         setInterval(atualizar, 3000);
         atualizar();
     </script>

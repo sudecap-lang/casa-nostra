@@ -4,7 +4,7 @@ import os
 import http.client
 from urllib.parse import urlparse
 
-# Puxa as chaves do banco redis-rose-yacht (Configurado nas suas fotos)
+# Puxa as chaves do banco redis-rose-yacht (Configurado como STORAGE nas suas fotos)
 KV_URL = os.environ.get('STORAGE_REST_API_URL')
 KV_TOKEN = os.environ.get('STORAGE_REST_API_TOKEN')
 CHAVE_MESTRA = "1234"
@@ -13,35 +13,45 @@ def redis_call(command, key, value=None):
     if not KV_URL: return None
     parsed = urlparse(KV_URL)
     conn = http.client.HTTPSConnection(parsed.hostname)
-    headers = {"Authorization": f"Bearer {KV_TOKEN}"}
+    headers = {"Authorization": f"Bearer {KV_TOKEN}", "Content-Type": "application/json"}
     path = f"/{command}/{key}"
-    body = json.dumps(value) if value is not None else None
+    
     method = "POST" if value is not None else "GET"
+    body = json.dumps(value) if value is not None else None
+    
     conn.request(method, path, body=body, headers=headers)
     res = conn.getresponse()
-    data = res.read()
+    raw_response = res.read().decode()
     conn.close()
-    return json.loads(data).get('result')
+    
+    try:
+        return json.loads(raw_response).get('result')
+    except:
+        return None
 
 class handler(BaseHTTPRequestHandler):
-   def do_GET(self):
+    def do_GET(self):
         params = urlparse(self.path).query
         query_dict = dict(qc.split("=") for qc in params.split("&") if "=" in qc)
         
         if query_dict.get('key') != CHAVE_MESTRA:
             self.send_response(401)
             self.end_headers()
+            self.wfile.write(json.dumps({"error": "Chave invalida"}).encode())
             return
 
-        # Busca a lista de MACs enviada pelo seu PC
-        active_macs = redis_call("get", "active_devices") or []
+        # Busca a lista enviada pelo seu PC
+        active_macs = redis_call("get", "active_devices")
         
-        # Garante que o formato seja uma lista de objetos que o site entenda
+        # Garante que seja uma lista para o site não travar
+        if not isinstance(active_macs, list):
+            active_macs = []
+
         data = [{"mac": m, "name": "ALVO DETECTADO"} for m in active_macs]
 
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*') # Libera o acesso para o site
+        self.send_header('Access-Control-Allow-Origin', '*')
         self.end_headers()
         self.wfile.write(json.dumps(data).encode())
 
@@ -50,15 +60,9 @@ class handler(BaseHTTPRequestHandler):
         post_data = self.rfile.read(content_length)
         payload = json.loads(post_data)
         
-        if payload.get('key') != CHAVE_MESTRA:
+        if payload.get('key') == CHAVE_MESTRA:
+            redis_call("set", "active_devices", payload.get('macs', []))
+            self.send_response(200)
+        else:
             self.send_response(403)
-            self.end_headers()
-            return
-
-        if 'macs' in payload:
-            redis_call("set", "active_devices", payload['macs'])
-        
-        self.send_response(200)
-        self.send_header('Content-type', 'application/json')
         self.end_headers()
-        self.wfile.write(json.dumps({"status": "ok"}).encode())

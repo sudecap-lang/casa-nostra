@@ -4,21 +4,23 @@ import os
 import http.client
 from urllib.parse import urlparse
 
-# CONFIGURAÇÕES DO BANCO STORAGE (REDIS-ROSE-YACHT)
+# Credenciais do Redis (Vercel KV)
 KV_URL = os.environ.get('STORAGE_REST_API_URL')
 KV_TOKEN = os.environ.get('STORAGE_REST_API_TOKEN')
 CHAVE_MESTRA = "1234"
 
-def redis_call(command, key, value=None):
-    if not KV_URL or not KV_TOKEN: return None
+def redis_exec(cmd, key, val=None):
+    if not KV_URL: return None
     try:
-        parsed = urlparse(KV_URL)
-        conn = http.client.HTTPSConnection(parsed.hostname)
-        headers = {"Authorization": f"Bearer {KV_TOKEN}", "Content-Type": "application/json"}
-        path = f"/{command}/{key}"
-        method = "POST" if value is not None else "GET"
-        body = json.dumps(value) if value is not None else None
-        conn.request(method, path, body=body, headers=headers)
+        url = urlparse(KV_URL)
+        conn = http.client.HTTPSConnection(url.hostname)
+        auth = f"Bearer {KV_TOKEN}"
+        path = f"/{cmd}/{key}"
+        
+        metodo = "POST" if val is not None else "GET"
+        corpo = json.dumps(val) if val is not None else None
+        
+        conn.request(metodo, path, body=corpo, headers={"Authorization": auth, "Content-Type": "application/json"})
         res = conn.getresponse()
         data = json.loads(res.read().decode())
         conn.close()
@@ -28,53 +30,34 @@ def redis_call(command, key, value=None):
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        # Captura parâmetros com segurança
-        try:
-            query = urlparse(self.path).query
-            params = dict(qc.split("=") for qc in query.split("&") if "=" in qc)
-        except:
-            params = {}
-        
-        # Cabeçalhos obrigatórios para evitar erro no Edge/iOS/Opera
+        # Resolve o problema da tela branca enviando sempre um status 200
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
         self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.end_headers()
 
-        # Verifica se a chave na URL está correta
+        # Pega a chave da URL
+        query = urlparse(self.path).query
+        params = dict(qc.split("=") for qc in query.split("&") if "=" in qc) if query else {}
+
         if params.get('key') != CHAVE_MESTRA:
-            self.wfile.write(json.dumps({"status": "bloqueado", "msg": "Use ?key=1234"}).encode())
+            self.wfile.write(json.dumps({"msg": "Chave incorreta"}).encode())
             return
 
-        # Puxa os dispositivos salvos
-        res = redis_call("get", "active_devices")
+        # Busca dados e garante que o site receba uma lista []
+        dados_brutos = redis_exec("get", "active_devices")
+        lista = [{"mac": m} for m in dados_brutos] if isinstance(dados_brutos, list) else []
         
-        # Garante o formato de lista para o site contar
-        if not isinstance(res, list):
-            res = [res] if res else []
-            
-        final_data = [{"mac": m} for m in res if m]
-        self.wfile.write(json.dumps(final_data).encode())
+        self.wfile.write(json.dumps(lista).encode())
 
     def do_POST(self):
-        # Recebe dados do agente local (CMD)
         try:
-            content_length = int(self.headers['Content-Length'])
-            post_data = self.rfile.read(content_length)
-            payload = json.loads(post_data)
-            
-            if payload.get('key') == CHAVE_MESTRA:
-                redis_call("set", "active_devices", payload.get('macs', []))
+            tamanho = int(self.headers['Content-Length'])
+            corpo = json.loads(self.rfile.read(tamanho))
+            if corpo.get('key') == CHAVE_MESTRA:
+                redis_exec("set", "active_devices", corpo.get('macs', []))
                 self.send_response(200)
-            else:
-                self.send_response(403)
+                self.end_headers()
         except:
             self.send_response(500)
-        self.end_headers()
-
-    def do_OPTIONS(self):
-        self.send_response(200)
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-        self.end_headers()
+            self.end_headers()

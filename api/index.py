@@ -4,7 +4,7 @@ import os
 import http.client
 from urllib.parse import urlparse
 
-# Puxa as chaves do seu banco redis-rose-yacht
+# Liga ao seu banco de dados redis-rose-yacht
 KV_URL = os.environ.get('STORAGE_REST_API_URL')
 KV_TOKEN = os.environ.get('STORAGE_REST_API_TOKEN')
 CHAVE_MESTRA = "1234"
@@ -33,19 +33,20 @@ class handler(BaseHTTPRequestHandler):
         
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*') # LIBERA PARA O OPERA
+        self.send_header('Access-Control-Allow-Origin', '*') # Libera para o Opera
+        self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
         self.end_headers()
 
         if params.get('key') != CHAVE_MESTRA:
             self.wfile.write(json.dumps([]).encode())
             return
 
-        # Busca os dados que seu terminal enviou
+        # Puxa os dados que o seu CMD enviou
         res = redis_call("get", "active_devices")
         
-        # Garante o formato de LISTA que o site index.html exige
+        # Garante que o site receba uma lista para poder contar (length)
         if isinstance(res, list):
-            data = [{"mac": m} for m in res if m]
+            data = [{"mac": m} for m in res]
         elif res:
             data = [{"mac": res}]
         else:
@@ -54,7 +55,6 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(data).encode())
 
     def do_POST(self):
-        # Este método recebe os dados do seu terminal
         content_length = int(self.headers['Content-Length'])
         post_data = self.rfile.read(content_length)
         payload = json.loads(post_data)

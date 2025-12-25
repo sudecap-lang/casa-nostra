@@ -13,11 +13,11 @@ def redis_exec(cmd, key, val=None):
     try:
         url = urlparse(KV_URL)
         conn = http.client.HTTPSConnection(url.hostname)
-        auth = f"Bearer {KV_TOKEN}"
+        headers = {"Authorization": f"Bearer {KV_TOKEN}", "Content-Type": "application/json"}
         path = f"/{cmd}/{key}"
         metodo = "POST" if val is not None else "GET"
         corpo = json.dumps(val) if val is not None else None
-        conn.request(metodo, path, body=corpo, headers={"Authorization": auth, "Content-Type": "application/json"})
+        conn.request(metodo, path, body=corpo, headers=headers)
         res = conn.getresponse()
         data = json.loads(res.read().decode())
         conn.close()
@@ -36,8 +36,8 @@ class handler(BaseHTTPRequestHandler):
         if params.get('key') != CHAVE_MESTRA:
             self.wfile.write(json.dumps([]).encode())
             return
-        dados_brutos = redis_exec("get", "active_devices")
-        lista = [{"mac": m} for m in dados_brutos] if isinstance(dados_brutos, list) else []
+        res = redis_exec("get", "active_devices")
+        lista = [{"mac": m} for m in res] if isinstance(res, list) else []
         self.wfile.write(json.dumps(lista).encode())
 
     def do_POST(self):

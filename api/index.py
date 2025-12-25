@@ -4,65 +4,86 @@ import os
 import http.client
 from urllib.parse import urlparse
 
-# Puxa as chaves do seu banco redis-rose-yacht
+# CONFIGURAÇÕES
 KV_URL = os.environ.get('STORAGE_REST_API_URL')
 KV_TOKEN = os.environ.get('STORAGE_REST_API_TOKEN')
 CHAVE_MESTRA = "1234"
 
 def redis_call(command, key, value=None):
-    if not KV_URL: return None
-    parsed = urlparse(KV_URL)
-    conn = http.client.HTTPSConnection(parsed.hostname)
-    headers = {"Authorization": f"Bearer {KV_TOKEN}", "Content-Type": "application/json"}
-    path = f"/{command}/{key}"
-    method = "POST" if value is not None else "GET"
-    body = json.dumps(value) if value is not None else None
+    """Comunicação com o Redis (Vercel KV)"""
+    if not KV_URL or not KV_TOKEN:
+        return None
+    
     try:
+        parsed = urlparse(KV_URL)
+        conn = http.client.HTTPSConnection(parsed.hostname)
+        headers = {
+            "Authorization": f"Bearer {KV_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        
+        path = f"/{command}/{key}"
+        method = "POST" if value is not None else "GET"
+        body = json.dumps(value) if value is not None else None
+        
         conn.request(method, path, body=body, headers=headers)
         res = conn.getresponse()
-        raw = res.read().decode()
+        data = res.read().decode()
         conn.close()
-        return json.loads(raw).get('result')
-    except:
+        return json.loads(data).get('result')
+    except Exception as e:
+        print(f"Erro no Redis: {e}")
         return None
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
+        # Evita erro de parsing se a URL for curta
         query = urlparse(self.path).query
-        params = dict(qc.split("=") for qc in query.split("&") if "=" in qc)
-        
+        params = {}
+        if query:
+            try:
+                params = dict(qc.split("=") for qc in query.split("&") if "=" in qc)
+            except:
+                params = {}
+
+        # Resposta padrão para evitar página branca
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*') # LIBERA PARA O OPERA
-        self.end_headers()
-
-        if params.get('key') != CHAVE_MESTRA:
-            self.wfile.write(json.dumps([]).encode())
-            return
-
-        # Busca os dados que seu terminal enviou
-        res = redis_call("get", "active_devices")
-        
-        # Garante o formato de LISTA que o site index.html exige
-        if isinstance(res, list):
-            data = [{"mac": m} for m in res if m]
-        elif res:
-            data = [{"mac": res}]
-        else:
-            data = []
-            
-        self.wfile.write(json.dumps(data).encode())
-
-    def do_POST(self):
-        # Este método recebe os dados do seu terminal
-        content_length = int(self.headers['Content-Length'])
-        post_data = self.rfile.read(content_length)
-        payload = json.loads(post_data)
-        
-        if payload.get('key') == CHAVE_MESTRA:
-            redis_call("set", "active_devices", payload.get('macs', []))
-            self.send_response(200)
-        else:
-            self.send_response(403)
         self.send_header('Access-Control-Allow-Origin', '*')
         self.end_headers()
+
+        # Validação da chave
+        if params.get('key') != CHAVE_MESTRA:
+            self.wfile.write(json.dumps({"status": "error", "message": "Chave invalida"}).encode())
+            return
+
+        # Busca dados no banco
+        active_macs = redis_call("get", "active_devices")
+        
+        # Garante que sempre retorne uma lista para o site index.html
+        if not isinstance(active_macs, list):
+            active_macs = []
+
+        # Formato esperado pelo seu site
+        final_data = [{"mac": m, "name": "ALVO LOCALIZADO"} for m in active_macs]
+        self.wfile.write(json.dumps(final_data).encode())
+
+    def do_POST(self):
+        try:
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            payload = json.loads(post_data)
+            
+            if payload.get('key') == CHAVE_MESTRA:
+                macs = payload.get('macs', [])
+                redis_call("set", "active_devices", macs)
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "sincronizado"}).encode())
+            else:
+                self.send_response(403)
+                self.end_headers()
+        except Exception:
+            self.send_response(400)
+            self.end_headers()

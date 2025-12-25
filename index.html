@@ -5,43 +5,31 @@
     <title>COSA NOSTRA MONITOR</title>
     <style>
         body { background: #000; color: #0f0; font-family: monospace; text-align: center; padding-top: 50px; }
-        .monitor { border: 2px solid #0f0; display: inline-block; padding: 40px; border-radius: 15px; background: #050505; box-shadow: 0 0 20px #0f0; }
-        #contador { font-size: 150px; color: #f00; font-weight: bold; margin: 20px 0; }
+        .caixa { border: 2px solid #0f0; display: inline-block; padding: 40px; border-radius: 20px; background: #050505; box-shadow: 0 0 25px #0f0; }
+        #contador { font-size: 160px; color: #f00; font-weight: bold; margin: 15px 0; text-shadow: 0 0 15px #f00; }
     </style>
 </head>
 <body>
-    <div class="monitor">
+    <div class="caixa">
         <h2>COSA NOSTRA INTELLIGENCE</h2>
         <div id="contador">0</div>
-        <p id="msg">AGUARDANDO SINAL...</p>
+        <p id="status">SCANNING...</p>
     </div>
 
     <script>
-        async function atualizar() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const chave = urlParams.get('key') || "1234";
-
+        async function verificar() {
             try {
-                // 't=' força a busca de dados novos
-                const res = await fetch(`/api?key=${chave}&t=${Date.now()}`);
-                const dados = await res.json();
+                // 't=' garante que o site peça a informação atualizada ao banco
+                const r = await fetch(`/api?key=1234&t=${Date.now()}`);
+                const d = await r.json();
                 
-                const total = Array.isArray(dados) ? dados.length : 0;
+                const total = Array.isArray(d) ? d.length : 0;
                 document.getElementById('contador').innerText = total;
-                
-                if (total > 0) {
-                    document.getElementById('msg').innerText = "ALVO DETECTADO NA REDE";
-                    document.getElementById('contador').style.color = "#f00";
-                } else {
-                    document.getElementById('msg').innerText = "NENHUM ALVO NA REDE";
-                    document.getElementById('contador').style.color = "#333";
-                }
-            } catch (e) {
-                console.log("Erro de conexão com servidor.");
-            }
+                document.getElementById('status').innerText = total > 0 ? "ALVO DETECTADO" : "NENHUM ALVO";
+            } catch (e) { console.error("Erro na busca"); }
         }
-        setInterval(atualizar, 3000);
-        atualizar();
+        setInterval(verificar, 3000); // Atualiza a cada 3 segundos
+        verificar();
     </script>
 </body>
 </html>

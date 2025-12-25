@@ -4,7 +4,7 @@ import os
 import http.client
 from urllib.parse import urlparse
 
-# Liga ao seu banco de dados redis-rose-yacht
+# Configurações do Redis (Vercel KV)
 KV_URL = os.environ.get('STORAGE_REST_API_URL')
 KV_TOKEN = os.environ.get('STORAGE_REST_API_TOKEN')
 CHAVE_MESTRA = "1234"
@@ -33,25 +33,25 @@ class handler(BaseHTTPRequestHandler):
         
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*') # Libera para o Opera
-        self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+        self.send_header('Access-Control-Allow-Origin', '*') # Libera o Opera
+        self.send_header('Cache-Control', 'no-store') # Força dado novo
         self.end_headers()
 
         if params.get('key') != CHAVE_MESTRA:
             self.wfile.write(json.dumps([]).encode())
             return
 
-        # Puxa os dados que o seu CMD enviou
-        res = redis_call("get", "active_devices")
+        # Puxa o dado do Redis
+        raw_res = redis_call("get", "active_devices")
         
-        # Garante que o site receba uma lista para poder contar (length)
-        if isinstance(res, list):
-            data = [{"mac": m} for m in res]
-        elif res:
-            data = [{"mac": res}]
+        # TRANSFORMAÇÃO CRÍTICA: Garante que o site receba uma lista []
+        if isinstance(raw_res, list):
+            data = raw_res
+        elif raw_res:
+            data = [raw_res] # Se for um texto único, vira lista
         else:
             data = []
-            
+
         self.wfile.write(json.dumps(data).encode())
 
     def do_POST(self):
@@ -60,7 +60,9 @@ class handler(BaseHTTPRequestHandler):
         payload = json.loads(post_data)
         
         if payload.get('key') == CHAVE_MESTRA:
-            redis_call("set", "active_devices", payload.get('macs', []))
+            # Salva o que vem do seu terminal
+            macs = payload.get('macs', [])
+            redis_call("set", "active_devices", macs)
             self.send_response(200)
         else:
             self.send_response(403)

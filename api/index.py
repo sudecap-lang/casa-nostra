@@ -40,6 +40,7 @@ class handler(BaseHTTPRequestHandler):
         if query_dict.get('key') != CHAVE_MESTRA:
             self.send_response(401)
             self.send_header('Content-type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             self.wfile.write(json.dumps({"error": "Chave invalida"}).encode())
             return
@@ -53,7 +54,7 @@ class handler(BaseHTTPRequestHandler):
 
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*') # LIBERA O SITE PARA LER OS DADOS
+        self.send_header('Access-Control-Allow-Origin', '*') # PERMITE QUE O SITE LEIA OS DADOS
         self.end_headers()
         self.wfile.write(json.dumps(data).encode())
 
@@ -66,12 +67,14 @@ class handler(BaseHTTPRequestHandler):
             # Salva a lista de MACs no banco Redis
             redis_call("set", "active_devices", payload.get('macs', []))
             self.send_response(200)
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
         else:
             self.send_response(403)
-        self.end_headers()
+            self.end_headers()
 
     def do_OPTIONS(self):
-        """Trata a pré-requisição de segurança dos navegadores."""
+        # Necessário para navegadores modernos permitirem a conexão
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')

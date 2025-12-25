@@ -1,40 +1,27 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>COSA NOSTRA</title>
-    <style>
-        body { background: #000; color: #0f0; font-family: monospace; text-align: center; padding: 50px; }
-        #contador { font-size: 100px; display: block; color: #f00; }
-        .box { border: 2px solid #0f0; display: inline-block; padding: 20px; box-shadow: 0 0 15px #0f0; }
-    </style>
-</head>
-<body>
-    <div class="box">
-        <h2>SISTEMA ATIVO</h2>
-        <span id="contador">0</span>
-        <p>DISPOSITIVOS DETECTADOS</p>
-        <div id="lista"></div>
-    </div>
+<script>
+    const params = new URLSearchParams(window.location.search);
+    const chave = params.get('key');
 
-    <script>
-        const chave = new URLSearchParams(window.location.search).get('key');
-
-        async function atualizar() {
-            if(!chave) return;
-            try {
-                // O t=Date.now() evita que o navegador mostre o resultado antigo (0)
-                const r = await fetch(`/api?key=${chave}&t=${Date.now()}`);
-                const d = await r.json();
-                document.getElementById('contador').innerText = d.length;
-                
-                let txt = "";
-                d.forEach(i => txt += "ALVO: " + (i.mac || "DESCONHECIDO") + "<br>");
-                document.getElementById('lista').innerHTML = txt;
-            } catch(e) { console.log("Erro na rede"); }
+    async function monitorar() {
+        if (!chave) return;
+        try {
+            // O t=Date.now() obriga o navegador a buscar o dado real no banco
+            const r = await fetch(`/api?key=${chave}&t=${Date.now()}`);
+            const d = await r.json();
+            
+            // Se d for uma lista, d.length será 1 (conforme seu terminal mostra)
+            const total = Array.isArray(d) ? d.length : 0;
+            
+            const el = document.getElementById('contador');
+            el.innerText = total;
+            
+            // Muda a cor se detectar algo
+            el.style.color = total > 0 ? "#ff0000" : "#00ff00";
+        } catch (e) {
+            console.error("Erro de conexão");
         }
-        setInterval(atualizar, 3000);
-        atualizar();
-    </script>
-</body>
-</html>
+    }
+
+    setInterval(monitorar, 3000);
+    monitorar();
+</script>

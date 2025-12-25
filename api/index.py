@@ -30,7 +30,7 @@ def redis_call(command, key, value=None):
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        # Validação da chave na URL (?key=1234)
+        # Captura a chave da URL (?key=1234)
         params = urlparse(self.path).query
         query_dict = dict(qc.split("=") for qc in params.split("&") if "=" in qc)
         
@@ -39,16 +39,16 @@ class handler(BaseHTTPRequestHandler):
             self.end_headers()
             return
 
-        # Busca os dados que o seu PC enviou
+        # Busca os MACs enviados pelo seu CMD
         active_macs = redis_call("get", "active_devices")
         if not isinstance(active_macs, list): active_macs = []
 
-        # Formata para o site exibir como "ALVO DETECTADO"
+        # Formata para o site reconhecer e aumentar o contador
         data = [{"mac": m, "name": "ALVO DETECTADO"} for m in active_macs]
 
         self.send_response(200)
         self.send_header('Content-type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*') # LIBERA O SITE
+        self.send_header('Access-Control-Allow-Origin', '*') # Essencial para o site ler
         self.end_headers()
         self.wfile.write(json.dumps(data).encode())
 
@@ -58,8 +58,16 @@ class handler(BaseHTTPRequestHandler):
         payload = json.loads(post_data)
         
         if payload.get('key') == CHAVE_MESTRA:
+            # Salva a lista no Redis
             redis_call("set", "active_devices", payload.get('macs', []))
             self.send_response(200)
         else:
             self.send_response(403)
+        self.end_headers()
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
         self.end_headers()

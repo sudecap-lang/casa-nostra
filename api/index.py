@@ -7,18 +7,22 @@ from urllib.parse import urlparse
 REDIS_URL = os.environ.get('REDIS_URL')
 CHAVE_MESTRA = "1234"
 
-def redis_call(path):
+def redis_api(comando, path_extra=""):
     if not REDIS_URL: return None
     try:
+        # Converte a URL do Redis para HTTPS (API REST do Upstash)
         url = urlparse(REDIS_URL.replace("redis://", "https://"))
         conn = http.client.HTTPSConnection(url.hostname, timeout=10)
         headers = {"Authorization": f"Bearer {url.password}"}
-        conn.request("GET", path, headers=headers)
+        
+        # Formato: /comando/chave/valor
+        conn.request("GET", f"/{comando}{path_extra}", headers=headers)
         res = conn.getresponse()
         data = json.loads(res.read().decode())
         conn.close()
         return data.get('result')
-    except: return None
+    except:
+        return None
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -30,12 +34,12 @@ class handler(BaseHTTPRequestHandler):
         query = urlparse(self.path).query
         params = dict(qc.split("=") for qc in query.split("&") if "=" in qc) if query else {}
         
+        # O site pede os dados aqui
         if params.get('key') == CHAVE_MESTRA:
-            # Busca o valor da chave 'count' no Redis
-            res = redis_call("/get/count")
-            # Se for "1", mandamos a lista que ativa o monitor
-            saida = [{"status": "online"}] if str(res) == "1" else []
-            self.wfile.write(json.dumps(saida).encode())
+            valor = redis_api("get", "/count")
+            # Se no banco estiver "1", mandamos um item na lista para o site contar
+            resposta = [{"id": 1}] if str(valor) == "1" else []
+            self.wfile.write(json.dumps(resposta).encode())
         else:
             self.wfile.write(json.dumps([]).encode())
 
@@ -43,9 +47,9 @@ class handler(BaseHTTPRequestHandler):
         try:
             tamanho = int(self.headers['Content-Length'])
             corpo = json.loads(self.rfile.read(tamanho))
+            # O Agente do PC avisa aqui que detectou algo
             if corpo.get('key') == CHAVE_MESTRA:
-                # Define o contador como 1 no banco
-                redis_call("/set/count/1")
+                redis_api("set", "/count/1")
                 self.send_response(200)
                 self.end_headers()
                 self.wfile.write(b"OK")

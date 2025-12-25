@@ -4,22 +4,23 @@ import os
 import http.client
 from urllib.parse import urlparse
 
-# Usa a variável exata que aparece na sua foto da Vercel
+# Pega a URL que você configurou na imagem da Vercel
 REDIS_URL = os.environ.get('REDIS_URL')
 CHAVE_MESTRA = "1234"
 
 def redis_exec(cmd, key, val=None):
-    if not REDIS_URL:
-        return None
+    if not REDIS_URL: return None
     try:
-        # Converte a URL do Redis para HTTPS para o Upstash/Vercel
+        # Força HTTPS e limpa a URL
         url_limpa = REDIS_URL.replace("redis://", "https://")
         url = urlparse(url_limpa)
-        host = url.hostname
-        token = url.password
+        conn = http.client.HTTPSConnection(url.hostname, timeout=5)
         
-        conn = http.client.HTTPSConnection(host)
-        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+        headers = {
+            "Authorization": f"Bearer {url.password}",
+            "Content-Type": "application/json"
+        }
+        
         path = f"/{cmd}/{key}"
         metodo = "POST" if val is not None else "GET"
         corpo = json.dumps(val) if val is not None else None
@@ -44,8 +45,8 @@ class handler(BaseHTTPRequestHandler):
         
         if params.get('key') == CHAVE_MESTRA:
             res = redis_exec("get", "count")
-            # Se o banco tiver algo, mandamos uma lista com 1 item para o monitor mostrar "1"
-            self.wfile.write(json.dumps([{"status": "ativo"}] if res == "1" else []).encode())
+            # Se houver qualquer valor no banco, mandamos "ativo" para o monitor
+            self.wfile.write(json.dumps([{"mac": "ALVO_LOCAL"}] if res else []).encode())
         else:
             self.wfile.write(json.dumps([]).encode())
 
@@ -54,9 +55,11 @@ class handler(BaseHTTPRequestHandler):
             tamanho = int(self.headers['Content-Length'])
             corpo = json.loads(self.rfile.read(tamanho))
             if corpo.get('key') == CHAVE_MESTRA:
+                # Salva o valor "1" de forma simplificada
                 redis_exec("set", "count", "1")
                 self.send_response(200)
                 self.end_headers()
+                self.wfile.write(b"OK")
         except:
             self.send_response(500)
             self.end_headers()
